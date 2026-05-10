@@ -3,82 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ניהול תקציב אישי - עדי</title>
+    <title>ניהול תקציב - עדי</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* איפוס ומניעת חריגות מהמסך */
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        :root { 
-            --primary: #2563eb; --danger: #dc2626; --success: #16a34a; 
-            --bg: #f1f5f9; --card: #ffffff; --text: #1e293b;
-        }
-
-        body { 
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; 
-            background: var(--bg); margin: 0; padding: 15px; color: var(--text); 
-        }
-
+        :root { --primary: #2563eb; --danger: #dc2626; --success: #16a34a; --bg: #f1f5f9; --card: #ffffff; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); margin: 0; padding: 15px; direction: rtl; }
         .container { max-width: 480px; margin: 0 auto; }
+        .card { background: var(--card); padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px; }
+        
+        .month-selector { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .month-input { padding: 8px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: bold; }
 
-        .card { 
-            background: var(--card); padding: 20px; border-radius: 16px; 
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); margin-bottom: 16px; width: 100%; 
-        }
-
-        /* כותרת תקציב */
         .header { text-align: center; border-bottom: 4px solid var(--primary); }
-        .remaining { font-size: 2.5rem; font-weight: 800; margin: 8px 0; }
+        .remaining { font-size: 2.2rem; font-weight: 800; margin: 8px 0; }
         .red { color: var(--danger); }
         .green { color: var(--success); }
 
-        /* שדות קלט */
-        .form-group { margin-bottom: 15px; }
-        label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; color: #64748b; }
-        input { 
-            width: 100%; padding: 12px; border: 1px solid #e2e8f0; 
-            border-radius: 10px; font-size: 1rem; background: #f8fafc; outline: none;
-        }
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 4px; }
+        input { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; font-size: 1rem; outline: none; }
         input:focus { border-color: var(--primary); background: #fff; }
+        
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 10px; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-danger { background: #fee2e2; color: var(--danger); padding: 5px 10px; width: auto; font-size: 0.8rem; border-radius: 6px; }
 
-        button { 
-            width: 100%; padding: 14px; background: var(--primary); color: white; 
-            border: none; border-radius: 12px; font-size: 1rem; font-weight: 700; 
-            cursor: pointer; transition: opacity 0.2s;
-        }
-        button:active { opacity: 0.8; transform: scale(0.99); }
-
-        /* לוגיקת חריגה */
-        .checkbox-group { 
-            display: flex; align-items: center; gap: 12px; background: #fef2f2; 
-            padding: 14px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #fee2e2; 
-        }
-        .checkbox-group input { width: 22px; height: 22px; margin: 0; }
-        .checkbox-group label { color: var(--danger); font-weight: 600; font-size: 0.9rem; cursor: pointer; }
-
-        /* רשימת הוצאות */
-        .invoice-item { 
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 12px 0; border-bottom: 1px solid #f1f5f9; 
-        }
-        .invoice-item:last-child { border: none; }
-        .automated-tag { 
-            font-size: 0.65rem; background: #e2e8f0; padding: 2px 6px; 
-            border-radius: 4px; color: #64748b; margin-left: 5px;
-        }
-
-        /* הגדרות */
-        .settings-section { margin-top: 30px; border-top: 2px dashed #cbd5e1; padding-top: 20px; }
+        .checkbox-group { display: flex; align-items: center; gap: 10px; background: #fef2f2; padding: 12px; border-radius: 10px; margin-top: 10px; border: 1px solid #fee2e2; }
+        
+        .invoice-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+        .item-info { display: flex; flex-direction: column; }
+        .item-date { font-size: 0.75rem; color: #94a3b8; }
+        .item-desc { font-weight: 600; color: #1e293b; }
+        .item-actions { display: flex; align-items: center; gap: 10px; }
+        .automated-tag { font-size: 0.65rem; background: #e2e8f0; padding: 2px 6px; border-radius: 4px; color: #64748b; margin-left: 5px; }
     </style>
 </head>
 <body>
 
-<div class="container" id="app-content" style="display: none;">
+<div class="container">
+    
+    <div class="month-selector">
+        <span style="font-weight: 700;">חודש תקציב:</span>
+        <input type="month" id="view-month" class="month-input" onchange="loadData()">
+    </div>
+
     <div class="card header">
-        <div style="font-size: 0.9rem; color: #64748b; font-weight: 600;">יתרה זמינה חודש <span id="current-month-display"></span></div>
+        <div id="month-label" style="font-weight: 600; color: #64748b;">טוען...</div>
         <div id="remaining-amount" class="remaining">₪0</div>
     </div>
 
     <div class="card">
+        <input type="hidden" id="edit-id">
         <div class="form-group">
             <label>תיאור</label>
             <input type="text" id="desc" placeholder="מה רכשת?">
@@ -91,46 +67,40 @@
             <label>תאריך</label>
             <input type="date" id="date">
         </div>
-        
-        <div id="carryover-ui" class="checkbox-group" style="display: none;">
+        <div id="carryover-ui" class="checkbox-group" style="display:none;">
             <input type="checkbox" id="carryover-cb">
-            <label for="carryover-cb">חריגה! להעביר לחודש הבא?</label>
+            <label for="carryover-cb">להעביר חריגה לחודש הבא?</label>
         </div>
-        
-        <button onclick="handleAddExpense()">שמור הוצאה</button>
+        <button id="save-btn" class="btn btn-primary" onclick="handleSave()">שמור הוצאה</button>
+        <button id="cancel-edit" class="btn" style="display:none; background:#e2e8f0;" onclick="resetForm()">ביטול עריכה</button>
     </div>
 
     <div class="card">
-        <div style="font-weight: 700; margin-bottom: 15px; font-size: 1.1rem;">פירוט הוצאות</div>
+        <div style="font-weight: 700; margin-bottom: 10px; font-size: 1.1rem;">פירוט הוצאות</div>
         <div id="expense-list"></div>
     </div>
 
-    <div class="card settings-section">
+    <div class="card" style="margin-top: 30px; border-top: 2px dashed #cbd5e1;">
         <div style="font-weight: 700; margin-bottom: 10px;">הגדרות תקציב</div>
-        <input type="number" id="new-base-limit" placeholder="עדכון תקציב בסיס (₪)">
-        <button onclick="updateBaseLimit()" style="background: #64748b; margin-top: 8px;">עדכן תקציב</button>
+        <input type="number" id="new-base-limit" placeholder="עדכון תקציב בסיס">
+        <button onclick="updateBaseLimit()" style="background: #64748b; margin-top: 8px;" class="btn">עדכן תקציב</button>
     </div>
 </div>
 
 <script>
-    // הגדרות חיבור
     const SUPABASE_URL = 'https://krwkxjvexezlxpgtdagc.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_7__AYBpMqplvU7N8t5lUwg_XSo0iPwf';
-    
-    // שינוי שם המשתנה למניעת התנגשויות
     const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let baseLimit = 1000;
     let currentExpenses = [];
-    
-    // אבטחה בסיסית - ניתן להחליף ב-Supabase Auth בהמשך
-    const accessCode = prompt("נא להזין קוד גישה:");
-    if (accessCode === "1234") { // החלף בסיסמה שלך
-        document.getElementById('app-content').style.display = 'block';
+
+    // אתחול אוטומטי ללא סיסמה
+    window.onload = () => {
+        const now = new Date();
+        document.getElementById('view-month').value = now.toISOString().substring(0, 7);
         init();
-    } else {
-        alert("קוד שגוי");
-    }
+    };
 
     async function init() {
         document.getElementById('date').valueAsDate = new Date();
@@ -139,98 +109,109 @@
     }
 
     async function loadData() {
-        try {
-            const now = new Date();
-            const monthStr = now.toISOString().substring(0, 7); // "2026-05"
-            document.getElementById('current-month-display').innerText = now.toLocaleString('he-IL', { month: 'long' });
+        const selectedMonth = document.getElementById('view-month').value;
+        
+        // שליפת תקציב
+        const { data: bData } = await sbClient.from('Budgets').select('*').eq('month_name', selectedMonth).maybeSingle();
+        baseLimit = bData ? bData.base_limit : 1000;
+        document.getElementById('month-label').innerText = `יתרה זמינה - ${selectedMonth}`;
 
-            // משיכת תקציב
-            const { data: bData, error: bErr } = await sbClient
-                .from('Budgets')
-                .select('*')
-                .eq('month_name', monthStr)
-                .maybeSingle();
-            
-            if (bData) baseLimit = bData.base_limit;
+        // שליפת הוצאות
+        const { data: eData } = await sbClient.from('Expenses')
+            .select('*')
+            .gte('date', `${selectedMonth}-01`)
+            .lte('date', `${selectedMonth}-31`)
+            .order('date', { ascending: false });
 
-            // משיכת הוצאות
-            const { data: eData, error: eErr } = await sbClient
-                .from('Expenses')
-                .select('*')
-                .gte('date', `${monthStr}-01`)
-                .lte('date', `${monthStr}-31`)
-                .order('date', { ascending: false });
-
-            if (eErr) throw eErr;
-
-            currentExpenses = eData || [];
-            renderUI();
-        } catch (err) {
-            alert("שגיאה בטעינה: " + err.message);
-        }
+        currentExpenses = eData || [];
+        renderUI();
     }
 
     function renderUI() {
-        const totalSpent = currentExpenses.reduce((sum, e) => sum + e.amount, 0);
-        const remaining = baseLimit - totalSpent;
-
+        const total = currentExpenses.reduce((s, e) => s + e.amount, 0);
+        const rem = baseLimit - total;
+        
         const remEl = document.getElementById('remaining-amount');
-        remEl.innerText = `₪${remaining.toLocaleString()}`;
-        remEl.className = 'remaining ' + (remaining < 0 ? 'red' : 'green');
+        remEl.innerText = `₪${rem.toLocaleString()}`;
+        remEl.className = 'remaining ' + (rem < 0 ? 'red' : 'green');
 
-        document.getElementById('carryover-ui').style.display = remaining < 0 ? 'flex' : 'none';
-
-        const listEl = document.getElementById('expense-list');
-        listEl.innerHTML = currentExpenses.length ? currentExpenses.map(e => `
+        document.getElementById('expense-list').innerHTML = currentExpenses.map(e => `
             <div class="invoice-item">
-                <div>
-                    ${e.is_automated ? '<span class="automated-tag">חריגה</span>' : ''}
-                    <span style="font-weight:500;">${e.description}</span>
+                <div class="item-info">
+                    <span class="item-date">${new Date(e.date).toLocaleDateString('he-IL')}</span>
+                    <span class="item-desc">${e.is_automated ? '<span class="automated-tag">חריגה</span>' : ''}${e.description}</span>
                 </div>
-                <div style="font-weight:800; color: #334155;">₪${e.amount.toLocaleString()}</div>
+                <div class="item-actions">
+                    <span style="font-weight:700;">₪${e.amount.toLocaleString()}</span>
+                    <button class="btn-danger" style="background:#f1f5f9; color:#475569;" onclick="startEdit(${JSON.stringify(e).replace(/"/g, '&quot;')})">ערוך</button>
+                    <button class="btn-danger" onclick="deleteExpense(${e.id})">מחק</button>
+                </div>
             </div>
-        `).join('') : '<div style="text-align:center; color:#94a3b8; padding:20px;">אין הוצאות רשומות</div>';
+        `).join('');
     }
 
-    async function handleAddExpense() {
-        const desc = document.getElementById('desc').value;
-        const amount = parseFloat(document.getElementById('amount').value);
-        const date = document.getElementById('date').value;
-        const shouldCarry = document.getElementById('carryover-cb').checked;
-
-        if (!desc || isNaN(amount)) return alert("נא להזין תיאור וסכום תקין");
-
-        const { error } = await sbClient.from('Expenses').insert([{
-            description: desc, 
-            amount: amount, 
-            date: date, 
+    async function handleSave() {
+        const id = document.getElementById('edit-id').value;
+        const payload = {
+            description: document.getElementById('desc').value,
+            amount: parseFloat(document.getElementById('amount').value),
+            date: document.getElementById('date').value,
             is_automated: false
-        }]);
+        };
 
-        if (error) return alert("שגיאה בשמירה: " + error.message);
+        if (!payload.description || isNaN(payload.amount)) return alert("מלא תיאור וסכום");
 
-        if (shouldCarry) await syncCarryOver();
+        if (id) {
+            await sbClient.from('Expenses').update(payload).eq('id', id);
+        } else {
+            await sbClient.from('Expenses').insert([payload]);
+        }
 
-        // ניקוי טופס ורענון
-        document.getElementById('desc').value = '';
-        document.getElementById('amount').value = '';
+        if (document.getElementById('carryover-cb').checked) await syncCarryOver();
+        resetForm();
         await loadData();
     }
 
+    async function deleteExpense(id) {
+        if (confirm("למחוק?")) {
+            await sbClient.from('Expenses').delete().eq('id', id);
+            await loadData();
+        }
+    }
+
+    function startEdit(expense) {
+        document.getElementById('edit-id').value = expense.id;
+        document.getElementById('desc').value = expense.description;
+        document.getElementById('amount').value = expense.amount;
+        document.getElementById('date').value = expense.date;
+        document.getElementById('save-btn').innerText = "עדכן הוצאה";
+        document.getElementById('cancel-edit').style.display = 'block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function resetForm() {
+        document.getElementById('edit-id').value = '';
+        document.getElementById('desc').value = '';
+        document.getElementById('amount').value = '';
+        document.getElementById('date').valueAsDate = new Date();
+        document.getElementById('save-btn').innerText = "שמור הוצאה";
+        document.getElementById('cancel-edit').style.display = 'none';
+    }
+
     async function syncCarryOver() {
-        const now = new Date();
-        const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-        const totalSpent = currentExpenses.reduce((sum, e) => sum + e.amount, 0);
-        const overspend = totalSpent - baseLimit;
-
-        if (overspend <= 0) return;
-
-        const prevMonthName = now.toLocaleString('he-IL', { month: 'long' });
+        const selectedMonth = document.getElementById('view-month').value;
+        const [year, month] = selectedMonth.split('-').map(Number);
+        const nextMonthDate = new Date(year, month, 1);
+        const nextMonthStr = nextMonthDate.toISOString().substring(0, 7);
         
+        const total = currentExpenses.reduce((s, e) => s + e.amount, 0);
+        const over = total - baseLimit;
+        if (over <= 0) return;
+
         await sbClient.from('Expenses').upsert({
-            description: `חריגה מחודש ${prevMonthName}`,
-            amount: overspend,
-            date: nextMonth.toISOString().split('T')[0],
+            description: `חריגה מחודש ${selectedMonth}`,
+            amount: over,
+            date: nextMonthDate.toISOString().split('T')[0],
             is_automated: true
         });
     }
@@ -238,24 +219,16 @@
     async function updateBaseLimit() {
         const newVal = parseFloat(document.getElementById('new-base-limit').value);
         if (!newVal) return;
-        const monthStr = new Date().toISOString().substring(0, 7);
-        
-        const { error } = await sbClient.from('Budgets').upsert({ 
-            month_name: monthStr, 
-            base_limit: newVal 
-        }, { onConflict: 'month_name' });
-
-        if (error) alert("שגיאה בעדכון: " + error.message);
-        else {
-            alert("התקציב עודכן בהצלחה");
-            loadData();
-        }
+        const monthStr = document.getElementById('view-month').value;
+        await sbClient.from('Budgets').upsert({ month_name: monthStr, base_limit: newVal }, { onConflict: 'month_name' });
+        alert("תקציב עודכן");
+        loadData();
     }
 
     function setupListeners() {
-        document.getElementById('amount').addEventListener('input', (e) => {
-            const val = parseFloat(e.target.value) || 0;
-            const total = currentExpenses.reduce((sum, ex) => sum + ex.amount, 0) + val;
+        document.getElementById('amount').addEventListener('input', () => {
+            const val = parseFloat(document.getElementById('amount').value) || 0;
+            const total = currentExpenses.reduce((s, e) => s + e.amount, 0) + val;
             document.getElementById('carryover-ui').style.display = (baseLimit - total) < 0 ? 'flex' : 'none';
         });
     }
