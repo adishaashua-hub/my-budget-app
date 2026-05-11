@@ -23,13 +23,11 @@
         .form-group { margin-bottom: 15px; }
         label { display: block; font-size: 0.85rem; font-weight: 600; color: #64748b; margin-bottom: 4px; }
         input { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; font-size: 1rem; outline: none; }
-        input:focus { border-color: var(--primary); background: #fff; }
         
-        .btn { width: 100%; padding: 14px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 10px; font-size: 1rem; }
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 10px; }
         .btn-primary { background: var(--primary); color: white; }
         .btn-danger { background: #fee2e2; color: var(--danger); padding: 5px 10px; width: auto; font-size: 0.8rem; border-radius: 6px; }
 
-        /* תיקון צ'ק-בוקס */
         .checkbox-group { 
             display: flex; 
             align-items: center; 
@@ -39,23 +37,9 @@
             border-radius: 12px; 
             margin: 15px 0; 
             border: 1px solid #fed7d7; 
-            justify-content: flex-start;
         }
-        .checkbox-group input { 
-            width: 22px; 
-            height: 22px; 
-            margin: 0; 
-            cursor: pointer; 
-            flex-shrink: 0;
-        }
-        .checkbox-group label { 
-            color: var(--danger); 
-            font-weight: 600; 
-            font-size: 0.9rem; 
-            cursor: pointer; 
-            margin: 0;
-            flex: 1;
-        }
+        .checkbox-group input { width: 22px; height: 22px; flex-shrink: 0; cursor: pointer; }
+        .checkbox-group label { color: var(--danger); font-weight: 600; font-size: 0.9rem; cursor: pointer; flex: 1; }
         
         .invoice-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
         .item-info { display: flex; flex-direction: column; }
@@ -68,14 +52,13 @@
 <body>
 
 <div class="container">
-    
     <div class="month-selector">
-        <span style="font-weight: 700;">חודש מוצג:</span>
+        <span style="font-weight: 700;">חודש תקציב:</span>
         <input type="month" id="view-month" class="month-input" onchange="loadData()">
     </div>
 
     <div class="card header">
-        <div id="month-label" style="font-weight: 600; color: #64748b;">טוען...</div>
+        <div id="month-label" style="font-weight: 600; color: #64748b;">טוען נתונים...</div>
         <div id="remaining-amount" class="remaining">₪0</div>
     </div>
 
@@ -93,10 +76,12 @@
             <label>תאריך</label>
             <input type="date" id="date" onchange="syncMonthWithDate(this.value)">
         </div>
+        
         <div id="carryover-ui" class="checkbox-group" style="display:none;">
             <input type="checkbox" id="carryover-cb">
-            <label for="carryover-cb">להעביר חריגה לחודש הבא?</label>
+            <label for="carryover-cb">חרגת! להעביר את יתרת החריגה כהוצאה לחודש הבא?</label>
         </div>
+        
         <button id="save-btn" class="btn btn-primary" onclick="handleSave()">שמור הוצאה</button>
         <button id="cancel-edit" class="btn" style="display:none; background:#e2e8f0;" onclick="resetForm()">ביטול עריכה</button>
     </div>
@@ -128,6 +113,7 @@
     };
 
     function syncMonthWithDate(dateVal) {
+        if (!dateVal) return;
         const selectedMonth = dateVal.substring(0, 7);
         if (document.getElementById('view-month').value !== selectedMonth) {
             document.getElementById('view-month').value = selectedMonth;
@@ -181,9 +167,24 @@
     }
 
     function updateCheckboxVisibility() {
-        const val = parseFloat(document.getElementById('amount').value) || 0;
-        const total = currentExpenses.reduce((s, e) => s + e.amount, 0) + val;
-        document.getElementById('carryover-ui').style.display = (total > baseLimit) ? 'flex' : 'none';
+        const amountField = document.getElementById('amount');
+        const val = parseFloat(amountField.value) || 0;
+        
+        // נחשב חריגה פוטנציאלית: הוצאות קיימות (ללא השורה שאנחנו אולי עורכים כרגע) + הסכום החדש
+        const editId = document.getElementById('edit-id').value;
+        const otherExpensesTotal = currentExpenses
+            .filter(e => e.id != editId)
+            .reduce((s, e) => s + e.amount, 0);
+        
+        const total = otherExpensesTotal + val;
+        const uiContainer = document.getElementById('carryover-ui');
+        
+        if (total > baseLimit && val > 0) {
+            uiContainer.style.display = 'flex';
+        } else {
+            uiContainer.style.display = 'none';
+            document.getElementById('carryover-cb').checked = false;
+        }
     }
 
     async function handleSave() {
@@ -203,37 +204,57 @@
             await sbClient.from('Expenses').insert([payload]);
         }
 
-        if (shouldCarry) {
-            await syncCarryOver(amount, date);
-        }
+        // סנכרון חריגה תמיד מתבצע לאחר שמירה כדי לוודא דיוק
+        await syncCarryOver(date, shouldCarry);
 
         resetForm();
         await loadData();
     }
 
-    async function syncCarryOver(newAmount, expenseDate) {
-        // חישוב מול המצב ב-DB
-        const totalInDb = currentExpenses.reduce((s, e) => s + e.amount, 0) + newAmount;
-        const over = totalInDb - baseLimit;
-        if (over <= 0) return;
+    async function syncCarryOver(transactionDate, isRequested) {
+        const dateObj = new Date(transactionDate);
+        const y = dateObj.getFullYear();
+        const m = dateObj.getMonth();
+        const monthStr = `${y}-${String(m + 1).padStart(2, '0')}`;
 
-        const dateObj = new Date(expenseDate);
-        const nextMonthDate = new Date(dateObj.getFullYear(), dateObj.getMonth() + 1, 1);
-        const monthName = dateObj.toLocaleString('he-IL', { month: 'long' });
+        // 1. קבלת התקציב
+        const { data: bData } = await sbClient.from('Budgets').select('base_limit').eq('month_name', monthStr).maybeSingle();
+        const limit = bData ? bData.base_limit : 1000;
 
-        const { error } = await sbClient.from('Expenses').upsert({
-            description: `חריגה מחודש ${monthName}`,
-            amount: over,
-            date: nextMonthDate.toISOString().split('T')[0],
-            is_automated: true
-        }, { onConflict: 'description, date, is_automated' });
-        
-        if (error) console.error("Carryover Error:", error.message);
+        // 2. קבלת סך ההוצאות העדכני מה-DB (מקור האמת)
+        const { data: eData } = await sbClient.from('Expenses').select('amount').gte('date', `${monthStr}-01`).lte('date', `${monthStr}-31`);
+        const total = (eData || []).reduce((s, e) => s + e.amount, 0);
+        const over = total - limit;
+
+        const nextMonthDate = new Date(y, m + 1, 1);
+        const nextMonthStr = nextMonthDate.toISOString().split('T')[0];
+        const monthNameHe = dateObj.toLocaleString('he-IL', { month: 'long' });
+        const carryDesc = `חריגה מחודש ${monthNameHe}`;
+
+        // לוגיקה: אם יש חריגה והמשתמש ביקש (או שהייתה קיימת חריגה שצריך לעדכן)
+        if (over > 0 && isRequested) {
+            await sbClient.from('Expenses').upsert({
+                description: carryDesc,
+                amount: over,
+                date: nextMonthStr,
+                is_automated: true
+            }, { onConflict: 'description, date, is_automated' });
+        } else {
+            // אם אין חריגה או שהמשתמש ביטל את הסימון - מוחקים את שורת החריגה בחודש הבא
+            await sbClient.from('Expenses').delete()
+                .eq('description', carryDesc)
+                .eq('date', nextMonthStr)
+                .eq('is_automated', true);
+        }
     }
 
     async function deleteExpense(id) {
-        if (confirm("למחוק?")) {
+        if (confirm("למחוק את ההוצאה?")) {
+            const { data } = await sbClient.from('Expenses').select('date').eq('id', id).single();
             await sbClient.from('Expenses').delete().eq('id', id);
+            
+            // לאחר מחיקה, תמיד נריץ סנכרון חריגה כדי לוודא ששורת החריגה בחודש הבא נמחקת/מתעדכנת
+            if (data) await syncCarryOver(data.date, true); 
             await loadData();
         }
     }
@@ -270,7 +291,9 @@
     }
 
     function setupListeners() {
+        // מאזין לשינוי סכום בזמן אמת - כולל מחיקה של הסכום
         document.getElementById('amount').addEventListener('input', updateCheckboxVisibility);
+        document.getElementById('amount').addEventListener('blur', updateCheckboxVisibility);
     }
 </script>
 </body>
