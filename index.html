@@ -96,7 +96,6 @@
     let currentExpenses = [];
     const monthNamesHe = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
 
-    // פונקציית עזר לעיצוב תאריך שלא מסתמכת על אזור זמן
     function formatDateDisplay(dateStr) {
         if (!dateStr) return "";
         const parts = dateStr.split('-');
@@ -198,25 +197,27 @@
         const payload = { description: desc, amount: amount, date: date, is_automated: false };
 
         if (id) {
-            await sbClient.from('Expenses').update(payload).eq('id', id);
+            const { error } = await sbClient.from('Expenses').update(payload).eq('id', id);
+            if (error) alert("שגיאה בעדכון: " + error.message);
         } else {
-            await sbClient.from('Expenses').insert([payload]);
+            const { error } = await sbClient.from('Expenses').insert([payload]);
+            if (error) alert("שגיאה ביצירת הוצאה: " + error.message);
         }
 
+        // נריץ סנכרון ונדאג להציג שגיאות אם יש
         await syncCarryOver(date, shouldCarry);
+        
         resetForm();
         await loadData();
     }
 
     async function syncCarryOver(transactionDate, isRequested) {
-        // פירוק מתמטי של התאריך למניעת בעיות Timezone
         const parts = transactionDate.split('-');
         let y = parseInt(parts[0]);
-        let m = parseInt(parts[1]); // 1 עד 12
-        
+        let m = parseInt(parts[1]); 
         const currentMonthPrefix = `${y}-${String(m).padStart(2, '0')}`;
 
-        // שליפת הנתונים ישירות מה-DB עבור החודש שבו התבצעה ההוצאה
+        // 1. חישוב מדויק של חריגה מה-DB
         const { data: bData } = await sbClient.from('Budgets').select('base_limit').eq('month_name', currentMonthPrefix).maybeSingle();
         const limit = bData ? bData.base_limit : 1000;
 
@@ -224,7 +225,7 @@
         const total = (eData || []).reduce((s, e) => s + e.amount, 0);
         const over = total - limit;
 
-        // חישוב מתמטי טהור של החודש הבא
+        // 2. קביעת החודש הבא (חסין לאזורי זמן)
         let nextM = m + 1;
         let nextY = y;
         if (nextM > 12) {
@@ -236,26 +237,48 @@
         const carryDesc = `חריגה מחודש ${monthNamesHe[m - 1]}`;
 
         if (over > 0 && isRequested) {
-            await sbClient.from('Expenses').upsert({
-                description: carryDesc,
-                amount: over,
-                date: nextMonthStr,
-                is_automated: true
-            }, { onConflict: 'description, date, is_automated' });
+            // הגישה הישירה: בדיקה ידנית אם קיימת רשומה, ואז Update או Insert
+            const { data: existingRecord } = await sbClient.from('Expenses')
+                .select('id')
+                .eq('description', carryDesc)
+                .eq('date', nextMonthStr)
+                .eq('is_automated', true)
+                .maybeSingle();
+
+            if (existingRecord) {
+                const { error: updErr } = await sbClient.from('Expenses')
+                    .update({ amount: over })
+                    .eq('id', existingRecord.id);
+                if (updErr) alert("שגיאה בעדכון החריגה בחודש הבא: " + updErr.message);
+            } else {
+                const { error: insErr } = await sbClient.from('Expenses')
+                    .insert([{
+                        description: carryDesc,
+                        amount: over,
+                        date: nextMonthStr,
+                        is_automated: true
+                    }]);
+                if (insErr) alert("שגיאה ביצירת שורת החריגה בחודש הבא: " + insErr.message);
+            }
         } else {
-            await sbClient.from('Expenses').delete()
+            // אם אין חריגה או שלא סומן CB, נמחק באופן אקטיבי את השורה מהחודש הבא
+            const { error: delErr } = await sbClient.from('Expenses')
+                .delete()
                 .eq('description', carryDesc)
                 .eq('date', nextMonthStr)
                 .eq('is_automated', true);
+            if (delErr) console.error("שגיאה במחיקת חריגה:", delErr.message);
         }
     }
 
     async function deleteExpense(id) {
         if (confirm("למחוק את ההוצאה?")) {
             const { data } = await sbClient.from('Expenses').select('date').eq('id', id).single();
-            await sbClient.from('Expenses').delete().eq('id', id);
-            
-            // מריץ סנכרון כדי לוודא שאם החריגה התבטלה, השורה תימחק מחודש הבא
+            const { error } = await sbClient.from('Expenses').delete().eq('id', id);
+            if (error) {
+                alert("שגיאה במחיקה: " + error.message);
+                return;
+            }
             if (data) await syncCarryOver(data.date, true);
             await loadData();
         }
