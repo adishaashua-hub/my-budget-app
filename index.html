@@ -20,10 +20,30 @@
         .red { color: var(--danger); }
         .green { color: var(--success); }
 
-        .form-group { margin-bottom: 15px; }
+        .form-group { margin-bottom: 15px; width: 100%; }
         label { display: block; font-size: 0.85rem; font-weight: 600; color: #64748b; margin-bottom: 4px; }
-        input { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; font-size: 1rem; outline: none; }
+        
+        /* תיקון לשדות הקלט במובייל */
+        input { 
+            width: 100%; 
+            max-width: 100%; /* חוסם חריגה */
+            padding: 12px; 
+            border: 1px solid #e2e8f0; 
+            border-radius: 10px; 
+            background: #f8fafc; 
+            font-size: 1rem; 
+            outline: none; 
+            font-family: inherit;
+            display: block;
+            appearance: none; /* איפוס עיצוב דפדפן */
+            -webkit-appearance: none; /* איפוס למכשירי אפל */
+        }
         input:focus { border-color: var(--primary); background: #fff; }
+        
+        /* תיקון ספציפי לגובה שדה תאריך באייפון */
+        input[type="date"] {
+            min-height: 44px;
+        }
         
         .btn { width: 100%; padding: 14px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 10px; font-size: 1rem; }
         .btn-primary { background: var(--primary); color: white; }
@@ -96,7 +116,6 @@
     let currentExpenses = [];
     const monthNamesHe = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
 
-    // פונקציה לחישוב מדויק של היום האחרון בחודש למניעת קריסות DB
     function getMonthEndDate(yearMonthStr) {
         const parts = yearMonthStr.split('-');
         const y = parseInt(parts[0]);
@@ -139,17 +158,15 @@
     }
 
     async function loadData() {
-        const selectedMonth = document.getElementById('view-month').value; // e.g., "2026-05"
+        const selectedMonth = document.getElementById('view-month').value; 
         const startDate = `${selectedMonth}-01`;
         const endDate = getMonthEndDate(selectedMonth);
 
-        // טעינת תקציב
         const { data: bData, error: bErr } = await sbClient.from('Budgets').select('*').eq('month_name', selectedMonth).maybeSingle();
         if (bErr) alert("שגיאה בטעינת תקציב: " + bErr.message);
         baseLimit = bData ? bData.base_limit : 1000;
         document.getElementById('month-label').innerText = `יתרה זמינה - ${selectedMonth}`;
 
-        // טעינת הוצאות עם תאריכים חוקיים בלבד
         const { data: eData, error: eErr } = await sbClient.from('Expenses')
             .select('*')
             .gte('date', startDate)
@@ -159,7 +176,6 @@
         if (eErr) alert("שגיאה בטעינת הוצאות: " + eErr.message);
         currentExpenses = eData || [];
 
-        // בדיקה האם כבר קיימת חריגה פעילה בחודש הבא (כדי לסמן את הצ'ק-בוקס מראש)
         const [y, m] = selectedMonth.split('-').map(Number);
         let nextM = m + 1; let nextY = y;
         if (nextM > 12) { nextM = 1; nextY++; }
