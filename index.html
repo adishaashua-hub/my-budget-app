@@ -74,7 +74,7 @@
         
         <div id="carryover-ui" class="checkbox-group" style="display:none;">
             <input type="checkbox" id="carryover-cb">
-            <label for="carryover-cb">חרגת! להעביר את סכום החריגה כהוצאה לחודש הבא?</label>
+            <label for="carryover-cb">חרגת! להעביר את סכום החריגה לחודש הבא?</label>
         </div>
         
         <button id="save-btn" class="btn btn-primary" onclick="handleSave()">שמור הוצאה</button>
@@ -95,6 +95,15 @@
     let baseLimit = 1000;
     let currentExpenses = [];
     const monthNamesHe = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
+
+    // פונקציה לחישוב מדויק של היום האחרון בחודש למניעת קריסות DB
+    function getMonthEndDate(yearMonthStr) {
+        const parts = yearMonthStr.split('-');
+        const y = parseInt(parts[0]);
+        const m = parseInt(parts[1]);
+        const lastDay = new Date(y, m, 0).getDate();
+        return `${yearMonthStr}-${lastDay}`;
+    }
 
     function formatDateDisplay(dateStr) {
         if (!dateStr) return "";
@@ -130,18 +139,38 @@
     }
 
     async function loadData() {
-        const selectedMonth = document.getElementById('view-month').value;
-        const { data: bData } = await sbClient.from('Budgets').select('*').eq('month_name', selectedMonth).maybeSingle();
+        const selectedMonth = document.getElementById('view-month').value; // e.g., "2026-05"
+        const startDate = `${selectedMonth}-01`;
+        const endDate = getMonthEndDate(selectedMonth);
+
+        // טעינת תקציב
+        const { data: bData, error: bErr } = await sbClient.from('Budgets').select('*').eq('month_name', selectedMonth).maybeSingle();
+        if (bErr) alert("שגיאה בטעינת תקציב: " + bErr.message);
         baseLimit = bData ? bData.base_limit : 1000;
         document.getElementById('month-label').innerText = `יתרה זמינה - ${selectedMonth}`;
 
-        const { data: eData } = await sbClient.from('Expenses')
+        // טעינת הוצאות עם תאריכים חוקיים בלבד
+        const { data: eData, error: eErr } = await sbClient.from('Expenses')
             .select('*')
-            .gte('date', `${selectedMonth}-01`)
-            .lte('date', `${selectedMonth}-31`)
+            .gte('date', startDate)
+            .lte('date', endDate)
             .order('date', { ascending: false });
-
+        
+        if (eErr) alert("שגיאה בטעינת הוצאות: " + eErr.message);
         currentExpenses = eData || [];
+
+        // בדיקה האם כבר קיימת חריגה פעילה בחודש הבא (כדי לסמן את הצ'ק-בוקס מראש)
+        const [y, m] = selectedMonth.split('-').map(Number);
+        let nextM = m + 1; let nextY = y;
+        if (nextM > 12) { nextM = 1; nextY++; }
+        const nextMonthStr = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
+        const carryDesc = `חריגה מחודש ${monthNamesHe[m - 1]}`;
+
+        const { data: carryData } = await sbClient.from('Expenses')
+            .select('id').eq('description', carryDesc).eq('date', nextMonthStr).eq('is_automated', true).maybeSingle();
+        
+        document.getElementById('carryover-cb').checked = !!carryData;
+
         renderUI();
         updateCheckboxVisibility();
     }
@@ -175,13 +204,11 @@
         
         const total = otherTotal + amountVal;
         const ui = document.getElementById('carryover-ui');
-        const cb = document.getElementById('carryover-cb');
 
         if (total > baseLimit && amountVal > 0) {
             ui.style.display = 'flex';
         } else {
             ui.style.display = 'none';
-            cb.checked = false;
         }
     }
 
@@ -198,13 +225,12 @@
 
         if (id) {
             const { error } = await sbClient.from('Expenses').update(payload).eq('id', id);
-            if (error) alert("שגיאה בעדכון: " + error.message);
+            if (error) return alert("שגיאה בעדכון: " + error.message);
         } else {
             const { error } = await sbClient.from('Expenses').insert([payload]);
-            if (error) alert("שגיאה ביצירת הוצאה: " + error.message);
+            if (error) return alert("שגיאה ביצירת הוצאה: " + error.message);
         }
 
-        // נריץ סנכרון ונדאג להציג שגיאות אם יש
         await syncCarryOver(date, shouldCarry);
         
         resetForm();
@@ -216,58 +242,39 @@
         let y = parseInt(parts[0]);
         let m = parseInt(parts[1]); 
         const currentMonthPrefix = `${y}-${String(m).padStart(2, '0')}`;
+        const startDate = `${currentMonthPrefix}-01`;
+        const endDate = getMonthEndDate(currentMonthPrefix);
 
-        // 1. חישוב מדויק של חריגה מה-DB
         const { data: bData } = await sbClient.from('Budgets').select('base_limit').eq('month_name', currentMonthPrefix).maybeSingle();
         const limit = bData ? bData.base_limit : 1000;
 
-        const { data: eData } = await sbClient.from('Expenses').select('amount').gte('date', `${currentMonthPrefix}-01`).lte('date', `${currentMonthPrefix}-31`);
+        const { data: eData } = await sbClient.from('Expenses').select('amount').gte('date', startDate).lte('date', endDate);
         const total = (eData || []).reduce((s, e) => s + e.amount, 0);
         const over = total - limit;
 
-        // 2. קביעת החודש הבא (חסין לאזורי זמן)
-        let nextM = m + 1;
-        let nextY = y;
-        if (nextM > 12) {
-            nextM = 1;
-            nextY++;
-        }
+        let nextM = m + 1; let nextY = y;
+        if (nextM > 12) { nextM = 1; nextY++; }
         
         const nextMonthStr = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
         const carryDesc = `חריגה מחודש ${monthNamesHe[m - 1]}`;
 
         if (over > 0 && isRequested) {
-            // הגישה הישירה: בדיקה ידנית אם קיימת רשומה, ואז Update או Insert
             const { data: existingRecord } = await sbClient.from('Expenses')
-                .select('id')
-                .eq('description', carryDesc)
-                .eq('date', nextMonthStr)
-                .eq('is_automated', true)
-                .maybeSingle();
+                .select('id').eq('description', carryDesc).eq('date', nextMonthStr).eq('is_automated', true).maybeSingle();
 
             if (existingRecord) {
-                const { error: updErr } = await sbClient.from('Expenses')
-                    .update({ amount: over })
-                    .eq('id', existingRecord.id);
-                if (updErr) alert("שגיאה בעדכון החריגה בחודש הבא: " + updErr.message);
+                const { error: updErr } = await sbClient.from('Expenses').update({ amount: over }).eq('id', existingRecord.id);
+                if (updErr) alert("שגיאה בעדכון חריגה: " + updErr.message);
             } else {
-                const { error: insErr } = await sbClient.from('Expenses')
-                    .insert([{
-                        description: carryDesc,
-                        amount: over,
-                        date: nextMonthStr,
-                        is_automated: true
-                    }]);
-                if (insErr) alert("שגיאה ביצירת שורת החריגה בחודש הבא: " + insErr.message);
+                const { error: insErr } = await sbClient.from('Expenses').insert([{
+                    description: carryDesc, amount: over, date: nextMonthStr, is_automated: true
+                }]);
+                if (insErr) alert("שגיאה ביצירת חריגה: " + insErr.message);
             }
         } else {
-            // אם אין חריגה או שלא סומן CB, נמחק באופן אקטיבי את השורה מהחודש הבא
-            const { error: delErr } = await sbClient.from('Expenses')
-                .delete()
-                .eq('description', carryDesc)
-                .eq('date', nextMonthStr)
-                .eq('is_automated', true);
-            if (delErr) console.error("שגיאה במחיקת חריגה:", delErr.message);
+            const { error: delErr } = await sbClient.from('Expenses').delete()
+                .eq('description', carryDesc).eq('date', nextMonthStr).eq('is_automated', true);
+            if (delErr) alert("שגיאה במחיקת חריגה: " + delErr.message);
         }
     }
 
@@ -279,7 +286,7 @@
                 alert("שגיאה במחיקה: " + error.message);
                 return;
             }
-            if (data) await syncCarryOver(data.date, true);
+            if (data) await syncCarryOver(data.date, document.getElementById('carryover-cb').checked);
             await loadData();
         }
     }
@@ -307,7 +314,6 @@
         
         document.getElementById('save-btn').innerText = "שמור הוצאה";
         document.getElementById('cancel-edit').style.display = 'none';
-        document.getElementById('carryover-cb').checked = false;
         updateCheckboxVisibility();
     }
 
