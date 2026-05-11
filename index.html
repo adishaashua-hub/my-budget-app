@@ -12,8 +12,8 @@
         .container { max-width: 480px; margin: 0 auto; }
         .card { background: var(--card); padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); margin-bottom: 16px; }
         
-        .month-selector { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .month-input { padding: 10px; border-radius: 10px; border: 1px solid #cbd5e1; font-weight: bold; background: #fff; }
+        .month-selector { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: #fff; padding: 10px; border-radius: 12px; }
+        .month-input { padding: 8px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: bold; }
 
         .header { text-align: center; border-bottom: 4px solid var(--primary); }
         .remaining { font-size: 2.2rem; font-weight: 800; margin: 8px 0; }
@@ -21,31 +21,32 @@
         .green { color: var(--success); }
 
         .form-group { margin-bottom: 15px; }
-        label { display: block; font-size: 0.85rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
-        input { width: 100%; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; font-size: 1rem; outline: none; }
+        label { display: block; font-size: 0.85rem; font-weight: 600; color: #64748b; margin-bottom: 4px; }
+        input { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; font-size: 1rem; outline: none; }
         input:focus { border-color: var(--primary); background: #fff; }
         
-        .btn { width: 100%; padding: 16px; border: none; border-radius: 14px; font-weight: 700; cursor: pointer; margin-top: 10px; font-size: 1rem; }
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 10px; font-size: 1rem; }
         .btn-primary { background: var(--primary); color: white; }
-        .btn-danger { background: #fee2e2; color: var(--danger); padding: 6px 12px; width: auto; font-size: 0.85rem; border-radius: 8px; }
+        .btn-danger { background: #fee2e2; color: var(--danger); padding: 5px 10px; width: auto; font-size: 0.8rem; border-radius: 6px; }
 
-        /* תיקון ה-Checkbox UI */
+        /* תיקון צ'ק-בוקס */
         .checkbox-group { 
             display: flex; 
             align-items: center; 
-            gap: 15px; 
+            gap: 12px; 
             background: #fff5f5; 
             padding: 15px; 
             border-radius: 12px; 
             margin: 15px 0; 
             border: 1px solid #fed7d7; 
+            justify-content: flex-start;
         }
-        .checkbox-group input[type="checkbox"] { 
-            width: 24px; 
-            height: 24px; 
-            flex-shrink: 0; /* מונע מהריבוע להתכווץ */
-            cursor: pointer;
-            margin: 0;
+        .checkbox-group input { 
+            width: 22px; 
+            height: 22px; 
+            margin: 0; 
+            cursor: pointer; 
+            flex-shrink: 0;
         }
         .checkbox-group label { 
             color: var(--danger); 
@@ -53,28 +54,28 @@
             font-size: 0.9rem; 
             cursor: pointer; 
             margin: 0;
-            line-height: 1.3;
             flex: 1;
         }
         
-        .invoice-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid #f1f5f9; }
-        .item-info { display: flex; flex-direction: column; gap: 2px; }
+        .invoice-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+        .item-info { display: flex; flex-direction: column; }
         .item-date { font-size: 0.75rem; color: #94a3b8; }
         .item-desc { font-weight: 600; color: #1e293b; }
-        .item-actions { display: flex; align-items: center; gap: 12px; }
+        .item-actions { display: flex; align-items: center; gap: 10px; }
         .automated-tag { font-size: 0.65rem; background: #e2e8f0; padding: 2px 6px; border-radius: 4px; color: #64748b; margin-left: 5px; }
     </style>
 </head>
 <body>
 
 <div class="container">
+    
     <div class="month-selector">
-        <span style="font-weight: 700;">חודש תקציב:</span>
+        <span style="font-weight: 700;">חודש מוצג:</span>
         <input type="month" id="view-month" class="month-input" onchange="loadData()">
     </div>
 
     <div class="card header">
-        <div id="month-label" style="font-weight: 600; color: #64748b;">יתרה זמינה</div>
+        <div id="month-label" style="font-weight: 600; color: #64748b;">טוען...</div>
         <div id="remaining-amount" class="remaining">₪0</div>
     </div>
 
@@ -90,25 +91,25 @@
         </div>
         <div class="form-group">
             <label>תאריך</label>
-            <input type="date" id="date">
+            <input type="date" id="date" onchange="syncMonthWithDate(this.value)">
         </div>
         <div id="carryover-ui" class="checkbox-group" style="display:none;">
             <input type="checkbox" id="carryover-cb">
-            <label for="carryover-cb">חרגת מהתקציב. להעביר את סכום החריגה כהוצאה לחודש הבא?</label>
+            <label for="carryover-cb">להעביר חריגה לחודש הבא?</label>
         </div>
         <button id="save-btn" class="btn btn-primary" onclick="handleSave()">שמור הוצאה</button>
         <button id="cancel-edit" class="btn" style="display:none; background:#e2e8f0;" onclick="resetForm()">ביטול עריכה</button>
     </div>
 
     <div class="card">
-        <div style="font-weight: 700; margin-bottom: 12px; font-size: 1.1rem;">פירוט הוצאות</div>
+        <div style="font-weight: 700; margin-bottom: 10px; font-size: 1.1rem;">פירוט הוצאות</div>
         <div id="expense-list"></div>
     </div>
 
     <div class="card" style="margin-top: 30px; border-top: 2px dashed #cbd5e1;">
         <div style="font-weight: 700; margin-bottom: 10px;">הגדרות תקציב</div>
         <input type="number" id="new-base-limit" placeholder="עדכון תקציב בסיס">
-        <button onclick="updateBaseLimit()" style="background: #64748b; margin-top: 8px;" class="btn">עדכן תקציב</button>
+        <button onclick="updateBaseLimit()" style="background: #64748b; margin-top: 8px;" class="btn btn-primary">עדכן תקציב</button>
     </div>
 </div>
 
@@ -125,6 +126,14 @@
         document.getElementById('view-month').value = now.toISOString().substring(0, 7);
         init();
     };
+
+    function syncMonthWithDate(dateVal) {
+        const selectedMonth = dateVal.substring(0, 7);
+        if (document.getElementById('view-month').value !== selectedMonth) {
+            document.getElementById('view-month').value = selectedMonth;
+            loadData();
+        }
+    }
 
     async function init() {
         document.getElementById('date').valueAsDate = new Date();
@@ -146,6 +155,7 @@
 
         currentExpenses = eData || [];
         renderUI();
+        updateCheckboxVisibility();
     }
 
     function renderUI() {
@@ -170,6 +180,12 @@
         `).join('');
     }
 
+    function updateCheckboxVisibility() {
+        const val = parseFloat(document.getElementById('amount').value) || 0;
+        const total = currentExpenses.reduce((s, e) => s + e.amount, 0) + val;
+        document.getElementById('carryover-ui').style.display = (total > baseLimit) ? 'flex' : 'none';
+    }
+
     async function handleSave() {
         const id = document.getElementById('edit-id').value;
         const desc = document.getElementById('desc').value;
@@ -187,7 +203,6 @@
             await sbClient.from('Expenses').insert([payload]);
         }
 
-        // אם ה-Checkbox סומן, נבצע סנכרון חריגה עם הערך החדש
         if (shouldCarry) {
             await syncCarryOver(amount, date);
         }
@@ -197,24 +212,23 @@
     }
 
     async function syncCarryOver(newAmount, expenseDate) {
-        // חישוב חריגה מעודכן כולל הסכום שהרגע הוזן
-        const currentTotal = currentExpenses.reduce((s, e) => s + e.amount, 0);
-        const totalWithNew = currentTotal + newAmount;
-        const overspend = totalWithNew - baseLimit;
+        // חישוב מול המצב ב-DB
+        const totalInDb = currentExpenses.reduce((s, e) => s + e.amount, 0) + newAmount;
+        const over = totalInDb - baseLimit;
+        if (over <= 0) return;
 
-        if (overspend <= 0) return;
-
-        // חישוב החודש הבא ביחס לתאריך ההוצאה
         const dateObj = new Date(expenseDate);
-        const nextMonth = new Date(dateObj.getFullYear(), dateObj.getMonth() + 1, 1);
-        const currentMonthName = dateObj.toLocaleString('he-IL', { month: 'long' });
+        const nextMonthDate = new Date(dateObj.getFullYear(), dateObj.getMonth() + 1, 1);
+        const monthName = dateObj.toLocaleString('he-IL', { month: 'long' });
 
-        await sbClient.from('Expenses').upsert({
-            description: `חריגה מחודש ${currentMonthName}`,
-            amount: overspend,
-            date: nextMonth.toISOString().split('T')[0],
+        const { error } = await sbClient.from('Expenses').upsert({
+            description: `חריגה מחודש ${monthName}`,
+            amount: over,
+            date: nextMonthDate.toISOString().split('T')[0],
             is_automated: true
-        });
+        }, { onConflict: 'description, date, is_automated' });
+        
+        if (error) console.error("Carryover Error:", error.message);
     }
 
     async function deleteExpense(id) {
@@ -231,6 +245,7 @@
         document.getElementById('date').value = expense.date;
         document.getElementById('save-btn').innerText = "עדכן הוצאה";
         document.getElementById('cancel-edit').style.display = 'block';
+        updateCheckboxVisibility();
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -242,6 +257,7 @@
         document.getElementById('save-btn').innerText = "שמור הוצאה";
         document.getElementById('cancel-edit').style.display = 'none';
         document.getElementById('carryover-cb').checked = false;
+        updateCheckboxVisibility();
     }
 
     async function updateBaseLimit() {
@@ -254,12 +270,7 @@
     }
 
     function setupListeners() {
-        document.getElementById('amount').addEventListener('input', () => {
-            const val = parseFloat(document.getElementById('amount').value) || 0;
-            const currentTotal = currentExpenses.reduce((s, e) => s + e.amount, 0);
-            const total = currentTotal + val;
-            document.getElementById('carryover-ui').style.display = (total > baseLimit) ? 'flex' : 'none';
-        });
+        document.getElementById('amount').addEventListener('input', updateCheckboxVisibility);
     }
 </script>
 </body>
