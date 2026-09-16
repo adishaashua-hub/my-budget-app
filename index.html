@@ -137,9 +137,9 @@
 
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js';
-        import { getFirestore, doc, collection, getDocs, getDoc, setDoc, updateDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js';
+        import { getFirestore, doc, collection, getDocs, getDoc, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js';
 
-        // פרטי התחברות לפרויקט החדש
+        // מפתחות החיבור של הפרויקט החדש שלך בלבד
         const firebaseConfig = {
             apiKey: "AIzaSyDWF54OFSgGFLaTtk9XoGQfI4qPc5pY7do",
             authDomain: "my-budget-app-5783f.firebaseapp.com",
@@ -343,7 +343,7 @@
 
             const monthKey = getMonthKey(currentYear, currentMonth);
             try {
-                await setDoc(doc(doc(db, 'budgets', monthKey)), {
+                await setDoc(doc(db, 'budgets', monthKey), {
                     month_name: monthKey,
                     base_limit: newLim,
                     updated_at: new Date().toISOString()
