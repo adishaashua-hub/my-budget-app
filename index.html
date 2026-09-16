@@ -18,7 +18,6 @@
             background-color: #f1f5f9;
             -webkit-tap-highlight-color: transparent;
         }
-        /* מניעת עיוות וגלישה של הצ'קבוקס במסכי מובייל */
         .prevent-shrink-checkbox {
             flex-shrink: 0 !important;
             -webkit-flex-shrink: 0 !important;
@@ -44,7 +43,7 @@
             </button>
         </header>
 
-        <!-- הודעת סטטוס ופידבק צפה -->
+        <!-- הודעת סטטוס ופידבק צפה / שגיאות -->
         <div id="feedbackBox" class="hidden mb-3 p-3 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-sm transition-all"></div>
 
         <!-- בורר חודש -->
@@ -174,19 +173,20 @@
             where 
         } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js';
 
-        // 1. הגדרות Firebase
+        // 1. הגדרות Firebase עם ה-Database הספציפי
         const firebaseConfig = {
             projectId: "alert-carport-lggh3",
             appId: "1:604110520358:web:bdc3a1651a3626534d26e7",
             apiKey: "AIzaSyD_cOSt_qWPE-dnOWurh0ElT8QBIKpFDaU",
             authDomain: "alert-carport-lggh3.firebaseapp.com",
+            firestoreDatabaseId: "ai-studio-6309029a-9e79-408d-94f4-422f063f72c5",
             storageBucket: "alert-carport-lggh3.firebasestorage.app",
             messagingSenderId: "604110520358"
         };
 
-        // אתחול Firebase Firestore
+        // אתחול Firebase Firestore ישירות עם ה-Database הנכון
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
         // שמות חודשים בעברית
         const monthNamesHe = [
@@ -201,6 +201,7 @@
         let currentLimit = 1000;
         let expenses = [];
         let editingExpenseId = null;
+        let isInitialLoad = true;
 
         // פונקציות עזר
         const getMonthKey = (year, month) => `${year}-${String(month).padStart(2, '0')}`;
@@ -229,7 +230,7 @@
             box.classList.remove('hidden');
             setTimeout(() => {
                 box.classList.add('hidden');
-            }, 3500);
+            }, 4000);
         }
 
         function updateMonthHeader() {
@@ -245,6 +246,33 @@
 
         // 2. טעינת נתונים מ-Firestore
         async function loadMonthData() {
+            // בטעינה ראשונה: אם בחודש הנוכחי אין נתונים, קופצים אוטומטית לחודש האחרון עם נתונים
+            if (isInitialLoad) {
+                isInitialLoad = false;
+                try {
+                    const allDocsSnap = await getDocs(collection(db, 'expenses'));
+                    if (!allDocsSnap.empty) {
+                        const availableMonths = [];
+                        allDocsSnap.forEach(d => {
+                            const data = d.data();
+                            const m = data.month_key || (data.date ? data.date.substring(0, 7) : '');
+                            if (m && !availableMonths.includes(m)) availableMonths.push(m);
+                        });
+                        availableMonths.sort();
+                        const currentKey = getMonthKey(currentYear, currentMonth);
+                        if (!availableMonths.includes(currentKey) && availableMonths.length > 0) {
+                            const latestMonth = availableMonths[availableMonths.length - 1];
+                            const [y, m] = latestMonth.split('-').map(Number);
+                            currentYear = y;
+                            currentMonth = m;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error on initial month check:', e);
+                    showFeedback('שגיאה בחיבור: ' + e.message, 'error');
+                }
+            }
+
             updateMonthHeader();
             const monthKey = getMonthKey(currentYear, currentMonth);
 
@@ -266,20 +294,14 @@
             // טעינת הוצאות עבור ה-month_key
             try {
                 expenses = [];
-                try {
-                    const q = query(collection(db, 'expenses'), where('month_key', '==', monthKey));
-                    const snap = await getDocs(q);
-                    snap.forEach(d => expenses.push({ id: d.id, ...d.data() }));
-                } catch (qErr) {
-                    const allSnap = await getDocs(collection(db, 'expenses'));
-                    allSnap.forEach(d => {
-                        const data = d.data();
-                        const mKey = data.month_key || (data.date ? data.date.substring(0, 7) : '');
-                        if (mKey === monthKey) {
-                            expenses.push({ id: d.id, ...data });
-                        }
-                    });
-                }
+                const allSnap = await getDocs(collection(db, 'expenses'));
+                allSnap.forEach(d => {
+                    const data = d.data();
+                    const mKey = data.month_key || (data.date ? data.date.substring(0, 7) : '');
+                    if (mKey === monthKey) {
+                        expenses.push({ id: d.id, ...data });
+                    }
+                });
 
                 // מיון לפי תאריך יורד
                 expenses.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -600,7 +622,6 @@
             loadMonthData();
         });
 
-        // סנכרון תאריך
         document.getElementById('dateInput').addEventListener('change', (e) => {
             const val = e.target.value;
             if (val && val.length >= 7) {
