@@ -4,339 +4,618 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ניהול תקציב - עדי</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Assistant & Rubik -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        :root { --primary: #2563eb; --danger: #dc2626; --success: #16a34a; --bg: #f1f5f9; --card: #ffffff; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); margin: 0; padding: 15px; direction: rtl; }
-        .container { max-width: 480px; margin: 0 auto; }
-        .card { background: var(--card); padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); margin-bottom: 16px; }
-        
-        .month-selector { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: #fff; padding: 10px; border-radius: 12px; }
-        .month-input { padding: 8px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: bold; outline: none; }
-
-        .header { text-align: center; border-bottom: 4px solid var(--primary); }
-        .remaining { font-size: 2.2rem; font-weight: 800; margin: 8px 0; }
-        .red { color: var(--danger); }
-        .green { color: var(--success); }
-
-        .form-group { margin-bottom: 15px; width: 100%; }
-        label { display: block; font-size: 0.85rem; font-weight: 600; color: #64748b; margin-bottom: 4px; }
-        
-        /* תיקון לשדות הקלט במובייל */
-        input { 
-            width: 100%; 
-            max-width: 100%; /* חוסם חריגה */
-            padding: 12px; 
-            border: 1px solid #e2e8f0; 
-            border-radius: 10px; 
-            background: #f8fafc; 
-            font-size: 1rem; 
-            outline: none; 
-            font-family: inherit;
-            display: block;
-            appearance: none; /* איפוס עיצוב דפדפן */
-            -webkit-appearance: none; /* איפוס למכשירי אפל */
+        body {
+            font-family: 'Assistant', 'Rubik', sans-serif;
+            background-color: #f1f5f9;
+            -webkit-tap-highlight-color: transparent;
         }
-        input:focus { border-color: var(--primary); background: #fff; }
-        
-        /* תיקון ספציפי לגובה שדה תאריך באייפון */
-        input[type="date"] {
-            min-height: 44px;
+        /* מניעת עיוות וגלישה של הצ'קבוקס במסכי מובייל */
+        .prevent-shrink-checkbox {
+            flex-shrink: 0 !important;
+            -webkit-flex-shrink: 0 !important;
         }
-        
-        .btn { width: 100%; padding: 14px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 10px; font-size: 1rem; }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-danger { background: #fee2e2; color: var(--danger); padding: 5px 10px; width: auto; font-size: 0.8rem; border-radius: 6px; }
-
-        .checkbox-group { 
-            display: flex; align-items: center; gap: 12px; background: #fff5f5; 
-            padding: 15px; border-radius: 12px; margin: 15px 0; border: 1px solid #fed7d7; 
-        }
-        .checkbox-group input { width: 22px; height: 22px; flex-shrink: 0; cursor: pointer; margin: 0; }
-        .checkbox-group label { color: var(--danger); font-weight: 600; font-size: 0.9rem; cursor: pointer; flex: 1; margin: 0; }
-        
-        .invoice-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
-        .item-info { display: flex; flex-direction: column; }
-        .item-date { font-size: 0.75rem; color: #94a3b8; font-family: monospace; }
-        .item-desc { font-weight: 600; color: #1e293b; }
-        .item-actions { display: flex; align-items: center; gap: 10px; }
-        .automated-tag { font-size: 0.65rem; background: #e2e8f0; padding: 2px 6px; border-radius: 4px; color: #64748b; margin-left: 5px; }
     </style>
 </head>
-<body>
-
-<div class="container">
-    <div class="month-selector">
-        <span style="font-weight: 700;">חודש תקציב:</span>
-        <input type="month" id="view-month" class="month-input" onchange="loadData()">
-    </div>
-
-    <div class="card header">
-        <div id="month-label" style="font-weight: 600; color: #64748b;">טוען נתונים...</div>
-        <div id="remaining-amount" class="remaining">₪0</div>
-    </div>
-
-    <div class="card">
-        <input type="hidden" id="edit-id">
-        <div class="form-group">
-            <label>תיאור</label>
-            <input type="text" id="desc" placeholder="מה רכשת?">
-        </div>
-        <div class="form-group">
-            <label>סכום</label>
-            <input type="number" id="amount" inputmode="decimal" placeholder="0.00">
-        </div>
-        <div class="form-group">
-            <label>תאריך</label>
-            <input type="date" id="date" onchange="syncMonthWithDate(this.value)">
-        </div>
+<body class="min-h-screen py-4 px-3 sm:px-6 flex flex-col justify-start items-center">
+    <div class="w-full max-w-[480px]">
         
-        <div id="carryover-ui" class="checkbox-group" style="display:none;">
-            <input type="checkbox" id="carryover-cb">
-            <label for="carryover-cb">חרגת! להעביר את סכום החריגה לחודש הבא?</label>
-        </div>
-        
-        <button id="save-btn" class="btn btn-primary" onclick="handleSave()">שמור הוצאה</button>
-        <button id="cancel-edit" class="btn" style="display:none; background:#e2e8f0;" onclick="resetForm()">ביטול עריכה</button>
-    </div>
-
-    <div class="card">
-        <div style="font-weight: 700; margin-bottom: 10px; font-size: 1.1rem;">פירוט הוצאות</div>
-        <div id="expense-list"></div>
-    </div>
-</div>
-
-<script>
-    const SUPABASE_URL = 'https://krwkxjvexezlxpgtdagc.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_7__AYBpMqplvU7N8t5lUwg_XSo0iPwf';
-    const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    let baseLimit = 1000;
-    let currentExpenses = [];
-    const monthNamesHe = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
-
-    function getMonthEndDate(yearMonthStr) {
-        const parts = yearMonthStr.split('-');
-        const y = parseInt(parts[0]);
-        const m = parseInt(parts[1]);
-        const lastDay = new Date(y, m, 0).getDate();
-        return `${yearMonthStr}-${lastDay}`;
-    }
-
-    function formatDateDisplay(dateStr) {
-        if (!dateStr) return "";
-        const parts = dateStr.split('-');
-        if (parts.length !== 3) return dateStr;
-        return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
-
-    window.onload = () => {
-        const today = new Date();
-        const y = today.getFullYear();
-        const m = String(today.getMonth() + 1).padStart(2, '0');
-        const d = String(today.getDate()).padStart(2, '0');
-        
-        document.getElementById('view-month').value = `${y}-${m}`;
-        document.getElementById('date').value = `${y}-${m}-${d}`;
-        
-        init();
-    };
-
-    function syncMonthWithDate(dateVal) {
-        if (!dateVal) return;
-        const selectedMonth = dateVal.substring(0, 7);
-        if (document.getElementById('view-month').value !== selectedMonth) {
-            document.getElementById('view-month').value = selectedMonth;
-            loadData();
-        }
-    }
-
-    async function init() {
-        await loadData();
-        setupListeners();
-    }
-
-    async function loadData() {
-        const selectedMonth = document.getElementById('view-month').value; 
-        const startDate = `${selectedMonth}-01`;
-        const endDate = getMonthEndDate(selectedMonth);
-
-        const { data: bData, error: bErr } = await sbClient.from('Budgets').select('*').eq('month_name', selectedMonth).maybeSingle();
-        if (bErr) alert("שגיאה בטעינת תקציב: " + bErr.message);
-        baseLimit = bData ? bData.base_limit : 1000;
-        document.getElementById('month-label').innerText = `יתרה זמינה - ${selectedMonth}`;
-
-        const { data: eData, error: eErr } = await sbClient.from('Expenses')
-            .select('*')
-            .gte('date', startDate)
-            .lte('date', endDate)
-            .order('date', { ascending: false });
-        
-        if (eErr) alert("שגיאה בטעינת הוצאות: " + eErr.message);
-        currentExpenses = eData || [];
-
-        const [y, m] = selectedMonth.split('-').map(Number);
-        let nextM = m + 1; let nextY = y;
-        if (nextM > 12) { nextM = 1; nextY++; }
-        const nextMonthStr = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
-        const carryDesc = `חריגה מחודש ${monthNamesHe[m - 1]}`;
-
-        const { data: carryData } = await sbClient.from('Expenses')
-            .select('id').eq('description', carryDesc).eq('date', nextMonthStr).eq('is_automated', true).maybeSingle();
-        
-        document.getElementById('carryover-cb').checked = !!carryData;
-
-        renderUI();
-        updateCheckboxVisibility();
-    }
-
-    function renderUI() {
-        const total = currentExpenses.reduce((s, e) => s + e.amount, 0);
-        const rem = baseLimit - total;
-        const remEl = document.getElementById('remaining-amount');
-        remEl.innerText = `₪${rem.toLocaleString()}`;
-        remEl.className = 'remaining ' + (rem < 0 ? 'red' : 'green');
-
-        document.getElementById('expense-list').innerHTML = currentExpenses.map(e => `
-            <div class="invoice-item">
-                <div class="item-info">
-                    <span class="item-date">${formatDateDisplay(e.date)}</span>
-                    <span class="item-desc">${e.is_automated ? '<span class="automated-tag">חריגה</span>' : ''}${e.description}</span>
+        <!-- כותרת ראשית של האפליקציה -->
+        <header class="flex items-center justify-between mb-3 px-1">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm shrink-0">
+                    <i data-lucide="piggy-bank" class="w-5 h-5"></i>
                 </div>
-                <div class="item-actions">
-                    <span style="font-weight:700;">₪${e.amount.toLocaleString()}</span>
-                    <button class="btn-danger" style="background:#f1f5f9; color:#475569;" onclick="startEdit(${JSON.stringify(e).replace(/"/g, '&quot;')})">ערוך</button>
-                    <button class="btn-danger" onclick="deleteExpense(${e.id})">מחק</button>
+                <div>
+                    <h1 class="text-xl font-black text-slate-900 tracking-tight leading-none">ניהול תקציב - עדי</h1>
+                    <p class="text-[11px] font-medium text-slate-500 mt-0.5">מעקב הוצאות חודשי • Firebase Firestore</p>
                 </div>
             </div>
-        `).join('');
-    }
+            <button id="refreshBtn" class="p-2 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-white transition-colors cursor-pointer" title="רענן נתונים">
+                <i data-lucide="refresh-cw" id="refreshIcon" class="w-4 h-4"></i>
+            </button>
+        </header>
 
-    function updateCheckboxVisibility() {
-        const amountVal = parseFloat(document.getElementById('amount').value) || 0;
-        const editId = document.getElementById('edit-id').value;
-        const otherTotal = currentExpenses.filter(e => e.id != editId).reduce((s, e) => s + e.amount, 0);
+        <!-- הודעת סטטוס ופידבק צפה -->
+        <div id="feedbackBox" class="hidden mb-3 p-3 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-sm transition-all"></div>
+
+        <!-- בורר חודש -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-3 mb-3 flex items-center justify-between">
+            <button id="nextMonthBtn" class="p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded-xl transition-all cursor-pointer" title="חודש הבא">
+                <i data-lucide="chevron-right" class="w-5 h-5"></i>
+            </button>
+            <div class="flex items-center gap-2">
+                <i data-lucide="calendar" class="w-4 h-4 text-blue-600 shrink-0"></i>
+                <span id="currentMonthDisplay" class="font-bold text-slate-800 text-base">טוען...</span>
+            </div>
+            <button id="prevMonthBtn" class="p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded-xl transition-all cursor-pointer" title="חודש קודם">
+                <i data-lucide="chevron-left" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- כרטיס סיכום תקציב -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4 mb-4">
+            <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2.5">
+                <span class="text-xs font-semibold text-slate-500">תקציב בסיס חודשי</span>
+                <div class="flex items-center gap-1.5">
+                    <span id="baseLimitDisplay" class="font-extrabold text-slate-900 text-lg">₪1,000</span>
+                    <button id="editBudgetBtn" class="text-blue-600 hover:text-blue-700 p-1 hover:bg-blue-50 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer">
+                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                        <span>ערוך</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="bg-slate-50 rounded-xl p-2.5 border border-slate-100">
+                    <span class="text-[11px] font-medium text-slate-500 block mb-1">סה״כ נוצל</span>
+                    <span id="totalSpentDisplay" class="text-base font-bold text-slate-900">₪0</span>
+                </div>
+                <div id="remainingCard" class="rounded-xl p-2.5 border bg-emerald-50 border-emerald-100 transition-colors">
+                    <span id="remainingLabel" class="text-[11px] font-medium text-emerald-700 block mb-1">נותר לניצול</span>
+                    <span id="remainingDisplay" class="text-base font-bold text-emerald-700">₪1,000</span>
+                </div>
+            </div>
+
+            <!-- סרגל התקדמות ניצול תקציב -->
+            <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                <div id="progressBar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- טופס הוספת / עריכת הוצאה -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4 mb-4">
+            <div class="flex items-center justify-between mb-3">
+                <h2 id="formTitle" class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                    <i data-lucide="plus-circle" class="w-4 h-4 text-blue-600"></i>
+                    <span>הוספת הוצאה חדשה</span>
+                </h2>
+                <button id="cancelEditBtn" class="hidden text-xs text-rose-500 hover:text-rose-600 flex items-center gap-1 cursor-pointer">
+                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                    <span>בטל עריכה</span>
+                </button>
+            </div>
+
+            <form id="expenseForm" class="space-y-3">
+                <input type="hidden" id="editExpenseId">
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-500 mb-1">תיאור ההוצאה</label>
+                    <input type="text" id="descInput" required placeholder="לדוגמה: אלי אקספרס, קניות סופר..." class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 mb-1">סכום (₪)</label>
+                        <input type="number" step="0.01" id="amountInput" required placeholder="0.00" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 mb-1">תאריך</label>
+                        <input type="date" id="dateInput" required class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    </div>
+                </div>
+
+                <!-- צ'קבוקס העברת חריגה -->
+                <div class="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3 flex items-start gap-2.5">
+                    <input type="checkbox" id="carryOverCheckbox" class="prevent-shrink-checkbox shrink-0 mt-1 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-amber-300 cursor-pointer">
+                    <label for="carryOverCheckbox" class="text-xs text-slate-700 leading-snug cursor-pointer select-none">
+                        <span class="font-bold text-amber-900 block mb-0.5">העברת חריגה לחודש הבא</span>
+                        במידה וקיימת חריגה מסך התקציב, היא תועבר אוטומטית כהוצאה ב-1 לחודש העוקב.
+                    </label>
+                </div>
+
+                <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm text-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer">
+                    <i data-lucide="plus" id="submitBtnIcon" class="w-4 h-4"></i>
+                    <span id="submitBtnText">הוסף הוצאה</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- רשימת הוצאות -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4">
+            <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2.5">
+                <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <i data-lucide="receipt" class="w-4 h-4 text-blue-600"></i>
+                    <span>הוצאות החודש</span>
+                </span>
+                <span id="expensesCount" class="text-[11px] font-medium text-slate-400">0 הוצאות</span>
+            </div>
+
+            <div id="expensesList" class="space-y-2">
+                <div class="text-center py-6 text-slate-400 text-xs">טוען הוצאות מ-Firestore...</div>
+            </div>
+        </div>
+
+        <footer class="text-center text-xs text-slate-400 py-4">
+            מחובר ל-Firebase Firestore • נשמר בזמן אמת
+        </footer>
+    </div>
+
+    <!-- Firebase SDK Modular v10 -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js';
+        import { 
+            getFirestore, 
+            doc, 
+            collection, 
+            getDocs, 
+            getDoc, 
+            setDoc, 
+            updateDoc, 
+            deleteDoc, 
+            query, 
+            where 
+        } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js';
+
+        // 1. הגדרות Firebase
+        const firebaseConfig = {
+            projectId: "alert-carport-lggh3",
+            appId: "1:604110520358:web:bdc3a1651a3626534d26e7",
+            apiKey: "AIzaSyD_cOSt_qWPE-dnOWurh0ElT8QBIKpFDaU",
+            authDomain: "alert-carport-lggh3.firebaseapp.com",
+            storageBucket: "alert-carport-lggh3.firebasestorage.app",
+            messagingSenderId: "604110520358"
+        };
+
+        // אתחול Firebase Firestore
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // שמות חודשים בעברית
+        const monthNamesHe = [
+            'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
+            'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'
+        ];
+
+        // משתני מצב
+        const now = new Date();
+        let currentYear = now.getFullYear();
+        let currentMonth = now.getMonth() + 1; // 1 עד 12
+        let currentLimit = 1000;
+        let expenses = [];
+        let editingExpenseId = null;
+
+        // פונקציות עזר
+        const getMonthKey = (year, month) => `${year}-${String(month).padStart(2, '0')}`;
         
-        const total = otherTotal + amountVal;
-        const ui = document.getElementById('carryover-ui');
+        const formatCurrency = (val) => {
+            return new Intl.NumberFormat('he-IL', {
+                style: 'currency',
+                currency: 'ILS',
+                maximumFractionDigits: 2,
+                minimumFractionDigits: 0
+            }).format(val || 0);
+        };
 
-        if (total > baseLimit && amountVal > 0) {
-            ui.style.display = 'flex';
-        } else {
-            ui.style.display = 'none';
+        const formatDateHebrew = (dateStr) => {
+            if (!dateStr) return '';
+            const p = dateStr.split('-');
+            return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : dateStr;
+        };
+
+        function showFeedback(text, type = 'success') {
+            const box = document.getElementById('feedbackBox');
+            box.textContent = text;
+            box.className = `mb-3 p-3 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-sm transition-all ${
+                type === 'success' ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-rose-50 border border-rose-200 text-rose-800'
+            }`;
+            box.classList.remove('hidden');
+            setTimeout(() => {
+                box.classList.add('hidden');
+            }, 3500);
         }
-    }
 
-    async function handleSave() {
-        const id = document.getElementById('edit-id').value;
-        const desc = document.getElementById('desc').value;
-        const amount = parseFloat(document.getElementById('amount').value);
-        const date = document.getElementById('date').value;
-        const shouldCarry = document.getElementById('carryover-cb').checked;
-
-        if (!desc || isNaN(amount)) return alert("מלא תיאור וסכום");
-
-        const payload = { description: desc, amount: amount, date: date, is_automated: false };
-
-        if (id) {
-            const { error } = await sbClient.from('Expenses').update(payload).eq('id', id);
-            if (error) return alert("שגיאה בעדכון: " + error.message);
-        } else {
-            const { error } = await sbClient.from('Expenses').insert([payload]);
-            if (error) return alert("שגיאה ביצירת הוצאה: " + error.message);
-        }
-
-        await syncCarryOver(date, shouldCarry);
-        
-        resetForm();
-        await loadData();
-    }
-
-    async function syncCarryOver(transactionDate, isRequested) {
-        const parts = transactionDate.split('-');
-        let y = parseInt(parts[0]);
-        let m = parseInt(parts[1]); 
-        const currentMonthPrefix = `${y}-${String(m).padStart(2, '0')}`;
-        const startDate = `${currentMonthPrefix}-01`;
-        const endDate = getMonthEndDate(currentMonthPrefix);
-
-        const { data: bData } = await sbClient.from('Budgets').select('base_limit').eq('month_name', currentMonthPrefix).maybeSingle();
-        const limit = bData ? bData.base_limit : 1000;
-
-        const { data: eData } = await sbClient.from('Expenses').select('amount').gte('date', startDate).lte('date', endDate);
-        const total = (eData || []).reduce((s, e) => s + e.amount, 0);
-        const over = total - limit;
-
-        let nextM = m + 1; let nextY = y;
-        if (nextM > 12) { nextM = 1; nextY++; }
-        
-        const nextMonthStr = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
-        const carryDesc = `חריגה מחודש ${monthNamesHe[m - 1]}`;
-
-        if (over > 0 && isRequested) {
-            const { data: existingRecord } = await sbClient.from('Expenses')
-                .select('id').eq('description', carryDesc).eq('date', nextMonthStr).eq('is_automated', true).maybeSingle();
-
-            if (existingRecord) {
-                const { error: updErr } = await sbClient.from('Expenses').update({ amount: over }).eq('id', existingRecord.id);
-                if (updErr) alert("שגיאה בעדכון חריגה: " + updErr.message);
-            } else {
-                const { error: insErr } = await sbClient.from('Expenses').insert([{
-                    description: carryDesc, amount: over, date: nextMonthStr, is_automated: true
-                }]);
-                if (insErr) alert("שגיאה ביצירת חריגה: " + insErr.message);
+        function updateMonthHeader() {
+            document.getElementById('currentMonthDisplay').textContent = `${monthNamesHe[currentMonth - 1]} ${currentYear}`;
+            const y = currentYear;
+            const m = String(currentMonth).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const dateInput = document.getElementById('dateInput');
+            if (!dateInput.value || !editingExpenseId) {
+                dateInput.value = `${y}-${m}-${d}`;
             }
-        } else {
-            const { error: delErr } = await sbClient.from('Expenses').delete()
-                .eq('description', carryDesc).eq('date', nextMonthStr).eq('is_automated', true);
-            if (delErr) alert("שגיאה במחיקת חריגה: " + delErr.message);
         }
-    }
 
-    async function deleteExpense(id) {
-        if (confirm("למחוק את ההוצאה?")) {
-            const { data } = await sbClient.from('Expenses').select('date').eq('id', id).single();
-            const { error } = await sbClient.from('Expenses').delete().eq('id', id);
-            if (error) {
-                alert("שגיאה במחיקה: " + error.message);
+        // 2. טעינת נתונים מ-Firestore
+        async function loadMonthData() {
+            updateMonthHeader();
+            const monthKey = getMonthKey(currentYear, currentMonth);
+
+            // טעינת תקציב בסיס עבור ה-month_key
+            try {
+                const budgetRef = doc(db, 'budgets', monthKey);
+                const budgetSnap = await getDoc(budgetRef);
+                if (budgetSnap.exists() && typeof budgetSnap.data().base_limit === 'number') {
+                    currentLimit = Number(budgetSnap.data().base_limit);
+                } else {
+                    currentLimit = 1000;
+                }
+            } catch (err) {
+                console.warn('Error fetching budget:', err);
+                currentLimit = 1000;
+            }
+            document.getElementById('baseLimitDisplay').textContent = `₪${currentLimit.toLocaleString()}`;
+
+            // טעינת הוצאות עבור ה-month_key
+            try {
+                expenses = [];
+                try {
+                    const q = query(collection(db, 'expenses'), where('month_key', '==', monthKey));
+                    const snap = await getDocs(q);
+                    snap.forEach(d => expenses.push({ id: d.id, ...d.data() }));
+                } catch (qErr) {
+                    const allSnap = await getDocs(collection(db, 'expenses'));
+                    allSnap.forEach(d => {
+                        const data = d.data();
+                        const mKey = data.month_key || (data.date ? data.date.substring(0, 7) : '');
+                        if (mKey === monthKey) {
+                            expenses.push({ id: d.id, ...data });
+                        }
+                    });
+                }
+
+                // מיון לפי תאריך יורד
+                expenses.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+            } catch (err) {
+                console.error('Error fetching expenses:', err);
+                showFeedback('שגיאה בטעינת הוצאות: ' + err.message, 'error');
+            }
+
+            // בדיקת סטטוס חריגה בחודש הבא לסנכרון הצ'קבוקס
+            await checkNextMonthCarryover();
+
+            renderSummary();
+            renderList();
+        }
+
+        async function checkNextMonthCarryover() {
+            let nextM = currentMonth + 1;
+            let nextY = currentYear;
+            if (nextM > 12) { nextM = 1; nextY++; }
+            const nextMonthKey = getMonthKey(nextY, nextM);
+            const nextDate = `${nextMonthKey}-01`;
+            const carryDesc = `חריגה מחודש ${monthNamesHe[currentMonth - 1]}`;
+
+            try {
+                const snap = await getDocs(collection(db, 'expenses'));
+                let found = false;
+                snap.forEach(d => {
+                    const data = d.data();
+                    if (data.is_automated && data.date === nextDate && data.description === carryDesc) {
+                        found = true;
+                    }
+                });
+                document.getElementById('carryOverCheckbox').checked = found;
+            } catch (e) {
+                console.warn(e);
+            }
+        }
+
+        // 3. חישוב יתרה וסיכום
+        function renderSummary() {
+            const totalSpent = expenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+            const remaining = currentLimit - totalSpent;
+
+            document.getElementById('totalSpentDisplay').textContent = formatCurrency(totalSpent);
+
+            const remainingCard = document.getElementById('remainingCard');
+            const remainingLabel = document.getElementById('remainingLabel');
+            const remainingDisplay = document.getElementById('remainingDisplay');
+            const progressBar = document.getElementById('progressBar');
+
+            if (remaining >= 0) {
+                remainingCard.className = "rounded-xl p-2.5 border bg-emerald-50 border-emerald-100 transition-colors";
+                remainingLabel.className = "text-[11px] font-medium text-emerald-700 block mb-1";
+                remainingLabel.textContent = "נותר לניצול";
+                remainingDisplay.className = "text-base font-bold text-emerald-700";
+                remainingDisplay.textContent = formatCurrency(remaining);
+                progressBar.className = "bg-blue-600 h-2 rounded-full transition-all duration-300";
+            } else {
+                remainingCard.className = "rounded-xl p-2.5 border bg-rose-50 border-rose-100 transition-colors";
+                remainingLabel.className = "text-[11px] font-medium text-rose-700 block mb-1";
+                remainingLabel.textContent = "חריגה מהתקציב";
+                remainingDisplay.className = "text-base font-bold text-rose-700";
+                remainingDisplay.textContent = formatCurrency(Math.abs(remaining));
+                progressBar.className = "bg-rose-500 h-2 rounded-full transition-all duration-300";
+            }
+
+            const pct = currentLimit > 0 ? Math.min(100, Math.max(0, (totalSpent / currentLimit) * 100)) : 100;
+            progressBar.style.width = `${pct}%`;
+        }
+
+        // 4. רינדור רשימת ההוצאות
+        function renderList() {
+            const listEl = document.getElementById('expensesList');
+            document.getElementById('expensesCount').textContent = `${expenses.length} הוצאות`;
+
+            if (expenses.length === 0) {
+                listEl.innerHTML = '<div class="text-center py-6 text-slate-400 text-xs">אין הוצאות רשומות לחודש זה</div>';
                 return;
             }
-            if (data) await syncCarryOver(data.date, document.getElementById('carryover-cb').checked);
-            await loadData();
+
+            listEl.innerHTML = expenses.map(item => `
+                <div class="flex items-center justify-between p-2.5 rounded-xl border ${item.is_automated ? 'bg-amber-50/70 border-amber-200/80' : 'bg-slate-50/70 border-slate-200/60'} hover:border-slate-300 transition-colors">
+                    <div class="flex items-center gap-2">
+                        ${item.is_automated ? '<span class="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded-md font-bold shrink-0">חריגה</span>' : ''}
+                        <div>
+                            <p class="text-xs font-bold text-slate-800 leading-tight">${item.description}</p>
+                            <span class="text-[10px] text-slate-400">${formatDateHebrew(item.date)}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-black text-slate-900">${formatCurrency(item.amount)}</span>
+                        <button class="edit-btn text-slate-400 hover:text-blue-600 p-1 cursor-pointer transition-colors" data-id="${item.id}" title="ערוך">
+                            <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <button class="delete-btn text-slate-400 hover:text-rose-600 p-1 cursor-pointer transition-colors" data-id="${item.id}" title="מחק">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            lucide.createIcons();
+
+            document.querySelectorAll('.edit-btn').forEach(btn => {
+                btn.addEventListener('click', () => startEdit(btn.dataset.id));
+            });
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', () => deleteExpense(btn.dataset.id));
+            });
         }
-    }
 
-    function startEdit(expense) {
-        document.getElementById('edit-id').value = expense.id;
-        document.getElementById('desc').value = expense.description;
-        document.getElementById('amount').value = expense.amount;
-        document.getElementById('date').value = expense.date;
-        document.getElementById('save-btn').innerText = "עדכן הוצאה";
-        document.getElementById('cancel-edit').style.display = 'block';
-        updateCheckboxVisibility();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+        // 5. סנכרון חריגה לחודש העוקב
+        async function syncCarryover(dateStr) {
+            const isCarryChecked = document.getElementById('carryOverCheckbox').checked;
+            const targetMonthKey = dateStr.substring(0, 7);
+            const [yStr, mStr] = targetMonthKey.split('-');
+            const y = parseInt(yStr, 10);
+            const m = parseInt(mStr, 10);
 
-    function resetForm() {
-        document.getElementById('edit-id').value = '';
-        document.getElementById('desc').value = '';
-        document.getElementById('amount').value = '';
-        const today = new Date();
-        const y = today.getFullYear();
-        const m = String(today.getMonth() + 1).padStart(2, '0');
-        const d = String(today.getDate()).padStart(2, '0');
-        document.getElementById('date').value = `${y}-${m}-${d}`;
-        
-        document.getElementById('save-btn').innerText = "שמור הוצאה";
-        document.getElementById('cancel-edit').style.display = 'none';
-        updateCheckboxVisibility();
-    }
+            let nextM = m + 1;
+            let nextY = y;
+            if (nextM > 12) { nextM = 1; nextY++; }
+            const nextMonthKey = getMonthKey(nextY, nextM);
+            const nextDate = `${nextMonthKey}-01`;
+            const carryDesc = `חריגה מחודש ${monthNamesHe[m - 1]}`;
 
-    function setupListeners() {
-        document.getElementById('amount').addEventListener('input', updateCheckboxVisibility);
-        document.getElementById('amount').addEventListener('blur', updateCheckboxVisibility);
-    }
-</script>
+            try {
+                const bSnap = await getDoc(doc(db, 'budgets', targetMonthKey));
+                const limit = bSnap.exists() && typeof bSnap.data().base_limit === 'number' ? bSnap.data().base_limit : 1000;
+
+                const snap = await getDocs(collection(db, 'expenses'));
+                let total = 0;
+                let existingCarryDoc = null;
+
+                snap.forEach(d => {
+                    const data = d.data();
+                    const itemMonth = data.month_key || (data.date ? data.date.substring(0, 7) : '');
+                    if (itemMonth === targetMonthKey) {
+                        total += Number(data.amount) || 0;
+                    }
+                    if (data.is_automated && data.date === nextDate && data.description === carryDesc) {
+                        existingCarryDoc = { id: d.id, ...data };
+                    }
+                });
+
+                const overAmount = total - limit;
+
+                if (overAmount > 0 && isCarryChecked) {
+                    if (existingCarryDoc) {
+                        await updateDoc(doc(db, 'expenses', existingCarryDoc.id), {
+                            amount: overAmount,
+                            updated_at: new Date().toISOString()
+                        });
+                    } else {
+                        const newRef = doc(collection(db, 'expenses'));
+                        await setDoc(newRef, {
+                            description: carryDesc,
+                            amount: overAmount,
+                            date: nextDate,
+                            month_key: nextMonthKey,
+                            is_automated: true,
+                            created_at: new Date().toISOString()
+                        });
+                    }
+                } else if (existingCarryDoc) {
+                    await deleteDoc(doc(db, 'expenses', existingCarryDoc.id));
+                }
+            } catch (err) {
+                console.warn('Carryover sync error:', err);
+            }
+        }
+
+        // 6. הוספה ועריכת הוצאה
+        async function saveExpense(e) {
+            e.preventDefault();
+            const desc = document.getElementById('descInput').value.trim();
+            const amt = parseFloat(document.getElementById('amountInput').value);
+            const dt = document.getElementById('dateInput').value;
+
+            if (!desc || isNaN(amt) || amt <= 0 || !dt) {
+                alert('נא למלא את כל השדות בצורה תקינה');
+                return;
+            }
+
+            const monthKey = dt.substring(0, 7);
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+
+            try {
+                if (editingExpenseId) {
+                    await updateDoc(doc(db, 'expenses', editingExpenseId), {
+                        description: desc,
+                        amount: amt,
+                        date: dt,
+                        month_key: monthKey,
+                        updated_at: new Date().toISOString()
+                    });
+                    showFeedback('ההוצאה עודכנה בהצלחה');
+                } else {
+                    const newDocRef = doc(collection(db, 'expenses'));
+                    await setDoc(newDocRef, {
+                        description: desc,
+                        amount: amt,
+                        date: dt,
+                        month_key: monthKey,
+                        is_automated: false,
+                        created_at: new Date().toISOString()
+                    });
+                    showFeedback('ההוצאה נוספה בהצלחה');
+                }
+
+                await syncCarryover(dt);
+                resetForm();
+
+                const [targetY, targetM] = monthKey.split('-').map(Number);
+                if (targetY !== currentYear || targetM !== currentMonth) {
+                    currentYear = targetY;
+                    currentMonth = targetM;
+                }
+
+                await loadMonthData();
+            } catch (err) {
+                console.error(err);
+                showFeedback('שגיאה בשמירת הוצאה: ' + err.message, 'error');
+            } finally {
+                submitBtn.disabled = false;
+            }
+        }
+
+        function startEdit(id) {
+            const item = expenses.find(x => x.id === id);
+            if (!item) return;
+
+            editingExpenseId = id;
+            document.getElementById('descInput').value = item.description;
+            document.getElementById('amountInput').value = item.amount;
+            document.getElementById('dateInput').value = item.date;
+
+            document.getElementById('formTitle').innerHTML = '<i data-lucide="edit-3" class="w-4 h-4 text-blue-600"></i><span>עריכת הוצאה</span>';
+            document.getElementById('submitBtnText').textContent = 'שמור שינויים';
+            document.getElementById('cancelEditBtn').classList.remove('hidden');
+            lucide.createIcons();
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function resetForm() {
+            editingExpenseId = null;
+            document.getElementById('expenseForm').reset();
+            document.getElementById('formTitle').innerHTML = '<i data-lucide="plus-circle" class="w-4 h-4 text-blue-600"></i><span>הוספת הוצאה חדשה</span>';
+            document.getElementById('submitBtnText').textContent = 'הוסף הוצאה';
+            document.getElementById('cancelEditBtn').classList.add('hidden');
+            lucide.createIcons();
+            updateMonthHeader();
+        }
+
+        // 7. מחיקת הוצאה
+        async function deleteExpense(id) {
+            if (!confirm('האם למחוק הוצאה זו?')) return;
+            const item = expenses.find(x => x.id === id);
+            try {
+                await deleteDoc(doc(db, 'expenses', id));
+                if (item?.date) {
+                    await syncCarryover(item.date);
+                }
+                showFeedback('ההוצאה נמחקה');
+                await loadMonthData();
+            } catch (err) {
+                showFeedback('שגיאה במחיקת הוצאה: ' + err.message, 'error');
+            }
+        }
+
+        // 8. עריכת תקציב בסיס חודשי
+        document.getElementById('editBudgetBtn').addEventListener('click', async () => {
+            const promptVal = prompt(`הזן תקציב בסיס לחודש ${monthNamesHe[currentMonth - 1]} ${currentYear}:`, currentLimit);
+            if (promptVal === null) return;
+            const newLim = parseFloat(promptVal);
+            if (isNaN(newLim) || newLim < 0) {
+                alert('נא להזין סכום חוקי');
+                return;
+            }
+
+            const monthKey = getMonthKey(currentYear, currentMonth);
+            try {
+                await setDoc(doc(db, 'budgets', monthKey), {
+                    month_name: monthKey,
+                    base_limit: newLim,
+                    updated_at: new Date().toISOString()
+                }, { merge: true });
+
+                currentLimit = newLim;
+                await syncCarryover(`${monthKey}-01`);
+                showFeedback(`התקציב עודכן ל-₪${newLim.toLocaleString()}`);
+                await loadMonthData();
+            } catch (err) {
+                showFeedback('שגיאה בעדכון תקציב: ' + err.message, 'error');
+            }
+        });
+
+        // חיבור אירועים
+        document.getElementById('expenseForm').addEventListener('submit', saveExpense);
+        document.getElementById('cancelEditBtn').addEventListener('click', resetForm);
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            const icon = document.getElementById('refreshIcon');
+            icon.classList.add('animate-spin');
+            loadMonthData().finally(() => setTimeout(() => icon.classList.remove('animate-spin'), 600));
+        });
+
+        document.getElementById('prevMonthBtn').addEventListener('click', () => {
+            currentMonth--;
+            if (currentMonth < 1) { currentMonth = 12; currentYear--; }
+            loadMonthData();
+        });
+
+        document.getElementById('nextMonthBtn').addEventListener('click', () => {
+            currentMonth++;
+            if (currentMonth > 12) { currentMonth = 1; currentYear++; }
+            loadMonthData();
+        });
+
+        // סנכרון תאריך
+        document.getElementById('dateInput').addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (val && val.length >= 7) {
+                const [y, m] = val.substring(0, 7).split('-').map(Number);
+                if (y !== currentYear || m !== currentMonth) {
+                    currentYear = y;
+                    currentMonth = m;
+                    loadMonthData();
+                }
+            }
+        });
+
+        // אתחול ראשוני
+        lucide.createIcons();
+        loadMonthData();
+    </script>
 </body>
 </html>
