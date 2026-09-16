@@ -139,13 +139,14 @@
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js';
         import { getFirestore, doc, collection, getDocs, getDoc, setDoc, updateDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js';
 
+        // פרטי התחברות לפרויקט החדש
         const firebaseConfig = {
-            projectId: "alert-carport-lggh3",
-            appId: "1:604110520358:web:bdc3a1651a3626534d26e7",
-            apiKey: "AIzaSyD_cOSt_qWPE-dnOWurh0ElT8QBIKpFDaU",
-            authDomain: "alert-carport-lggh3.firebaseapp.com",
-            storageBucket: "alert-carport-lggh3.firebasestorage.app",
-            messagingSenderId: "604110520358"
+            apiKey: "AIzaSyDWF54OFSgGFLaTtk9XoGQfI4qPc5pY7do",
+            authDomain: "my-budget-app-5783f.firebaseapp.com",
+            projectId: "my-budget-app-5783f",
+            storageBucket: "my-budget-app-5783f.firebasestorage.app",
+            messagingSenderId: "817869543907",
+            appId: "1:817869543907:web:80e065699b4f33cd1768d6"
         };
 
         const app = initializeApp(firebaseConfig);
@@ -161,7 +162,6 @@
         let editingExpenseId = null;
 
         const getMonthKey = (year, month) => `${year}-${String(month).padStart(2, '0')}`;
-        
         const formatCurrency = (val) => new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 2 }).format(val || 0);
 
         function showFeedback(text, type = 'success') {
@@ -343,7 +343,7 @@
 
             const monthKey = getMonthKey(currentYear, currentMonth);
             try {
-                await setDoc(doc(db, 'budgets', monthKey), {
+                await setDoc(doc(doc(db, 'budgets', monthKey)), {
                     month_name: monthKey,
                     base_limit: newLim,
                     updated_at: new Date().toISOString()
