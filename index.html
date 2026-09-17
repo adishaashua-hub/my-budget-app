@@ -470,12 +470,12 @@
                 statusBadge.className = 'inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold';
                 statusBadgeText.textContent = `חריגה בסך ${formatCurrency(Math.abs(remaining))}`;
                 statusBadgeIcon.setAttribute('data-lucide', 'alert-triangle');
-                statusBadgeIcon.className = 'w-3.5 h-3.5 text-rose-600';
+                statusBadgeIcon.setAttribute('class', 'w-3.5 h-3.5 text-rose-600');
             } else {
                 statusBadge.className = 'inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold';
                 statusBadgeText.textContent = 'עומד במסגרת התקציב';
                 statusBadgeIcon.setAttribute('data-lucide', 'shield-check');
-                statusBadgeIcon.className = 'w-3.5 h-3.5 text-emerald-600';
+                statusBadgeIcon.setAttribute('class', 'w-3.5 h-3.5 text-emerald-600');
             }
 
             const percentUsed = currentBaseLimit > 0 
